@@ -179,6 +179,87 @@ export const useSuperHeroesData = (onSuccess, onError) => {
 }
 ```
 
-## Query by ID 
+## Posting data using useMutation
 
-- eg: we have list of items, onclick of item, we want details of individual item 
+- for CUD operations we use Mutations 
+- useMutation doesn't necessarily need a key like useQuery does
+- parameters: Function that will post data to backend
+```
+const addSomething = (dataToBePosted) => {
+    return axios.post('http://url', dataToBePosted)
+} 
+```
+- useMutation returns 
+1) mutate function that we have to call to make POST req 
+2) flags like isLoading, isError
+
+## Query invalidation 
+
+- suppose you are adding something using a form and UI is out of date 
+- we want React query to refetch data as soon as mutation succeeds 
+- this feature is called Query invalidation 
+
+### Implementing Query invalidation 
+
+- Create instance of ```useQueryClient```, let's say queryClient
+-  get hold of success callback of useMutation hook, the code in here will exceute as soon as mutation succeeds
+- in the callback, 
+we will first update the queryCache
+```
+const queryClient = useQueryClient();
+return useMutation(addSomething, {
+    onSuccess: (data)=> {
+
+        // update the queryCache (append the mutation resp)
+        queryClient.setQueryData('key-used-by-useQuery', (oldQueryData) => {
+            return {
+                ...oldQueryData,
+                data: [...oldQueryData.data, data.data]
+            }
+        })
+
+        queryClient.invalidateQueries('key-used-by-useQuery')
+    }
+})
+```
+
+## Axios Interceptor 
+
+- let's say you have a file called ```axios-utils.js```
+
+```
+import axios from 'axios'
+
+const client = axios.create({ baseURL: 'http://localhost:4000' })
+
+export const request = ({ ...options }) => {
+
+    // setting Auth bearer token
+    client.defaults.headers.common.Authorization = `Bearer ${token}`
+
+    const onSuccess = response => response
+    const onError = error => {
+        // optionaly catch errors and add additional logging here
+        return error
+    }
+
+    return client(options).then(onSuccess).catch(onError)
+}
+
+```
+
+- Now for every request the base URL will be ```http://localhost:4000``` and bearer token will be present in the header 
+
+- Using the receptor 
+
+```
+import {request} from './utils/axios-utils'
+
+const addSomething = (dataToBePosted) => {
+    // without Interceptor
+    return axios.post('http://url', dataToBePosted)
+
+    // with Interceptor
+    return request({url: '/endpt', method: 'post/get', data: whatever})
+}
+```
